@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>大学生时间规划实验</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#3B82F6',
+                        secondary: '#10B981',
+                        accent: '#8B5CF6',
+                        neutral: '#6B7280',
+                        light: '#F3F4F6',
+                        dark: '#1F2937'
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                    },
+                },
+            }
+        }
+    </script>
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .content-auto {
+                content-visibility: auto;
+            }
+            .shadow-smooth {
+                box-shadow: 0 2px 15px rgba(0, 0, 0, 0.05);
+            }
+            .transition-gpu {
+                transform: translateZ(0);
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 font-sans text-dark min-h-screen">
+    <div class="container mx-auto px-4 py-8 max-w-4xl">
+        <!-- 页面容器 -->
+        <div id="page-container" class="bg-white rounded-xl shadow-smooth p-6 transition-gpu">
+            <!-- 页面内容将通过JavaScript动态切换 -->
+        </div>
+    </div>
+
+    <script>
+        // 全局数据存储
+        const experimentData = {
+            studentInfo: null,
+            planData: [],
+            currentPage: 'personal-info'
+        };
+
+        // 页面定义
+        const pages = {
+            'personal-info': {
+                render: () => `
+                    <div class="text-center">
+                        <h1 class="text-2xl font-bold text-primary mb-6">周一时间规划实验</h1>
+                        <h2 class="text-xl mb-8">学号登录</h2>
+                        <div class="max-w-md mx-auto">
+                            <div class="bg-blue-50 p-4 rounded-lg mb-6 text-left">
+                                <p class="text-sm text-blue-700">请输入您的学号以登录。</p>
+                            </div>
+                            <div class="mb-6 text-left">
+                                <label for="student-id" class="block mb-2 font-medium">学号</label>
+                                <input type="text" id="student-id" placeholder="请输入学号" 
+                                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition duration-300">
+                            </div>
+                            <div class="flex space-x-4">
+                                <div class="flex-1"></div>
+                                <button id="next-to-complete" class="flex-1 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition duration-300">
+                                    下一步
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `,
+                setup: () => {
+                    // 移除返回按钮功能，因为没有前一个页面
+                    
+                    document.getElementById('next-to-complete').addEventListener('click', () => {
+                        const studentId = document.getElementById('student-id').value.trim();
+                        
+                        if (!studentId) {
+                            alert('请输入学号');
+                            return;
+                        }
+                        
+                        // 简单的学号格式验证
+                        if (!/^\d{4,10}$/.test(studentId)) {
+                            alert('请输入有效的学号（4-10位数字）');
+                            return;
+                        }
+                        
+                        // 只保存学号信息
+                        experimentData.studentInfo = {
+                            id: studentId
+                        };
+                        
+                        // 检查本地存储中是否已有该学号的数据
+                        const storageKey = `monday_plan_${studentId}`;
+                        try {
+                            const savedData = localStorage.getItem(storageKey);
+                            if (savedData) {
+                                const parsedData = JSON.parse(savedData);
+                                // 确保数据结构符合新格式
+                                if (parsedData.planData && Array.isArray(parsedData.planData)) {
+                                    // 检查是否是新的数据结构格式（包含timeSlot和plans字段）
+                                    if (parsedData.planData.length > 0 && parsedData.planData[0].timeSlot !== undefined && Array.isArray(parsedData.planData[0].plans)) {
+                                        experimentData.planData = parsedData.planData;
+                                    } else {
+                                        // 如果是旧格式，转换为新格式
+                                        experimentData.planData = [
+                                            {
+                                                timeSlot: '08:00-12:00',
+                                                plans: ['', '', '']
+                                            },
+                                            {
+                                                timeSlot: '12:00-16:00',
+                                                plans: ['', '', '']
+                                            },
+                                            {
+                                                timeSlot: '16:00-20:00',
+                                                plans: ['', '', '']
+                                            },
+                                            {
+                                                timeSlot: '20:00-睡前',
+                                                plans: ['', '', '']
+                                            }
+                                        ];
+                                    }
+                                } else {
+                                    // 初始化默认数据结构
+                                    initDefaultPlanData();
+                                }
+                                experimentData.startTime = parsedData.startTime;
+                            } else {
+                                // 初始化新的数据
+                                initDefaultPlanData();
+                                const allData = {
+                                    studentInfo: experimentData.studentInfo,
+                                    planData: experimentData.planData,
+                                    startTime: new Date().toISOString()
+                                };
+                                localStorage.setItem(storageKey, JSON.stringify(allData));
+                            }
+                        } catch (error) {
+                            console.error('读取或保存数据时出错：', error);
+                            // 发生错误时，使用默认数据结构
+                            initDefaultPlanData();
+                        }
+                        
+                        // 跳转到时间计划页面
+                        experimentData.currentPage = 'time-plan';
+                        renderCurrentPage();
+                    });
+                }
+            },
+            'time-plan': {
+                render: () => `
+                    <div>
+                        <h1 class="text-2xl font-bold text-primary mb-6 text-center">我的选择日记</h1>
+                        <h2 class="text-xl text-center mb-8">周一规划</h2>
+                        <div class="bg-blue-50 p-4 rounded-lg mb-6 shadow-sm">
+                            <p class="text-sm text-blue-700">请规划您周一的时间安排，每个时间段至少填写3件事情。</p>
+                        </div>
+                        
+                        <div class="mb-8 space-y-8">
+                            ${renderTimeSlots()}
+                        </div>
+                        
+                        <!-- 操作按钮 -->
+                        <div class="flex justify-between space-x-4">
+                            <button id="back-to-login" class="px-6 py-2 bg-white border border-neutral text-neutral rounded-lg hover:bg-gray-100 transition duration-300">
+                                返回登录
+                            </button>
+                            <button id="save-plan" class="px-6 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition duration-300">
+                                保存计划
+                            </button>
+                        </div>
+                    </div>
+                `,
+                setup: () => {
+                    // 返回登录页面
+                    document.getElementById('back-to-login').addEventListener('click', () => {
+                        experimentData.currentPage = 'personal-info';
+                        renderCurrentPage();
+                    });
+                    
+                    // 保存计划
+                    document.getElementById('save-plan').addEventListener('click', savePlan);
+                }
+            }
+        };
+
+        // 初始化默认数据结构
+        function initDefaultPlanData() {
+            if (!experimentData.planData || experimentData.planData.length === 0) {
+                experimentData.planData = [
+                    {
+                        timeSlot: '08:00-12:00',
+                        plans: ['', '', '']
+                    },
+                    {
+                        timeSlot: '12:00-16:00',
+                        plans: ['', '', '']
+                    },
+                    {
+                        timeSlot: '16:00-20:00',
+                        plans: ['', '', '']
+                    },
+                    {
+                        timeSlot: '20:00-睡前',
+                        plans: ['', '', '']
+                    }
+                ];
+            }
+        }
+
+        // 渲染时间段和事件
+        function renderTimeSlots() {
+            initDefaultPlanData();
+            
+            return experimentData.planData.map((timeSlot, slotIndex) => `
+                <div class="border border-gray-200 rounded-lg p-4 shadow-sm">
+                    <h3 class="text-lg font-medium text-primary mb-4 text-center">${timeSlot.timeSlot}</h3>
+                    <p class="text-sm text-gray-600 mb-4">你决定今天在【${timeSlot.timeSlot}】做哪些什么事情呢？</p>
+                    
+                    <div class="space-y-3">
+                        ${timeSlot.plans.map((plan, planIndex) => `
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">计划${planIndex + 1}:</label>
+                                <input 
+                                    type="text" 
+                                    placeholder="请输入计划内容" 
+                                    value="${plan}" 
+                                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition duration-300"
+                                    onchange="updatePlan(${slotIndex}, ${planIndex}, this.value)"
+                                >
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        // 更新计划内容
+        function updatePlan(slotIndex, planIndex, value) {
+            if (experimentData.planData[slotIndex] && experimentData.planData[slotIndex].plans[planIndex] !== undefined) {
+                experimentData.planData[slotIndex].plans[planIndex] = value;
+            }
+        }
+        
+        // 保存计划
+        function savePlan() {
+            // 验证必填字段
+            let isValid = true;
+            let emptyCount = 0;
+            
+            experimentData.planData.forEach((timeSlot, slotIndex) => {
+                timeSlot.plans.forEach((plan, planIndex) => {
+                    if (!plan.trim()) {
+                        emptyCount++;
+                    }
+                });
+            });
+            
+            // 检查是否每个时间段至少有3个计划
+            experimentData.planData.forEach((timeSlot, slotIndex) => {
+                const filledPlans = timeSlot.plans.filter(plan => plan.trim() !== '').length;
+                if (filledPlans < 3) {
+                    isValid = false;
+                    alert(`${timeSlot.timeSlot}时间段至少需要填写3个计划`);
+                }
+            });
+            
+            if (!isValid) return;
+            
+            // 保存到本地存储
+            const storageKey = `monday_plan_${experimentData.studentInfo.id}`;
+            const allData = {
+                studentInfo: experimentData.studentInfo,
+                planData: experimentData.planData,
+                startTime: experimentData.startTime || new Date().toISOString(),
+                completionTime: new Date().toISOString()
+            };
+            
+            try {
+                localStorage.setItem(storageKey, JSON.stringify(allData));
+                alert('计划已成功保存！');
+            } catch (error) {
+                console.error('保存数据时出错：', error);
+                alert('保存失败，请重试');
+            }
+        }
+        
+        // 将函数绑定到window对象，使其在HTML中可访问
+        window.updatePlan = updatePlan;
+        
+        // 渲染当前页面
+        function renderCurrentPage() {
+            const container = document.getElementById('page-container');
+            const currentPage = pages[experimentData.currentPage];
+            
+            if (currentPage) {
+                container.innerHTML = currentPage.render();
+                currentPage.setup();
+            }
+        }
+
+        // 初始化应用
+        document.addEventListener('DOMContentLoaded', () => {
+            renderCurrentPage();
+        });
+    </script>
+</body>
+</html>
